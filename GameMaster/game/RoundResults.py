@@ -31,7 +31,11 @@ class RoundResults:
             return PlayerNumber.Player2
 
     def print_results(self, p1_name: str, p2_name: str):
+        i = 0
         print(f"player1:\t{p1_name}\tplayer2:\t{p2_name}")
         for idx, result in enumerate(self.results):
             print(f"round\t{idx+1}\twinner:\t{p1_name if result[0] == PlayerNumber.Player1 else p2_name}\t"
                   f"{p1_name} used ap:\t{result[1]}\t{p2_name} used ap:\t{result[2]}")
+            if result[0] == PlayerNumber.Player1:
+                i = i + 1
+        print(i/10)
