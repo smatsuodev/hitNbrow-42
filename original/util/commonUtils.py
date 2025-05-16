@@ -1,7 +1,9 @@
 
+from functools import lru_cache
 import random
 
 
+@lru_cache(maxsize=None)
 def create_unique_list():
     ret = []
     for i in range(10):

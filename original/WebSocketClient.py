@@ -11,6 +11,7 @@ from player.sendMessage.PlayerNameResponse import PlayerNameResponse
 from player.sendMessage.SecretNumberResponse import SecretNumberResponse
 from util.commonUtils import add_change, addSuffle, delete_bad_answer, delete_bad_answer_high_low, delete_bad_answer_target, do_change, do_suffle, generate_unique_numbers, create_unique_list
 from strategy import secret
+from strategy import estimate
 
 DOMAIN = 'localhost'
 PORT = 8088
@@ -21,7 +22,8 @@ WARNINGTHRESHOLD = 1000
 
 
 class WebSocketClient:
-    def __init__(self, danger: int = DENGERTHRESHOLD, warning: int =  WARNINGTHRESHOLD, name: str =  NAME, domain: str = DOMAIN, port: int = PORT, secret_strategy = generate_unique_numbers):
+    def __init__(self, danger: int = DENGERTHRESHOLD, warning: int =  WARNINGTHRESHOLD, name: str =  NAME, domain: str = DOMAIN, port: int = PORT,
+                 secret_strategy = generate_unique_numbers, estimate_strategy: estimate.EstimateStrategy = estimate.DefaultStrategy()):
         self._domain = domain
         self._port = port
         self._uri = f"ws://{self._domain}:{self._port}"
@@ -30,6 +32,7 @@ class WebSocketClient:
         self._warning = warning
         self._name = name
         self._secret_strategy = secret_strategy
+        self._estimate_strategy = estimate_strategy
         self.initForRound()
 
     def initForRound(self):
@@ -172,7 +175,8 @@ class WebSocketClient:
             result_target_position = result_target.get("position")
             self._answerList = delete_bad_answer_target(result_target_number, result_target_position, self._answerList)
         elif message_type == "requestChallengeNumber":
-            response = ChallengeNumberResponse(self._answerList[0])
+            input = estimate.EstimateInput(answerList=self._answerList)
+            response = ChallengeNumberResponse(self._estimate_strategy.estimate(input))
             await self.send(websocket, response.as_body())
         elif message_type == "challengeResult":
             result_obj = message.get("body").get("result")
@@ -200,5 +204,5 @@ if __name__ == "__main__":
     parser.add_argument("--w", type=int, default=1500,help="Warning threshold")
     parser.add_argument("--n", type=str, default="noname",help="Name")
     args = parser.parse_args()
-    client = WebSocketClient(args.d, args.w, args.n, secret_strategy=secret.gen_h2l2)
+    client = WebSocketClient(args.d, args.w, args.n, secret_strategy=secret.gen_h2l2, estimate_strategy=estimate.BLandyStrategy())
     client.start()
