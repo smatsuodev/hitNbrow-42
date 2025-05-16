@@ -1,5 +1,7 @@
 from collections import Counter
+from functools import lru_cache
 
+@lru_cache(maxsize=None)
 def calculate_hit_and_blow(declared_number: str, actual_number: str) -> str:
     """
     2つの4桁の数字からヒット数とブロー数を計算し、フィードバック文字列を返します。
