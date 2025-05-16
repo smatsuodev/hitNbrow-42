@@ -10,6 +10,7 @@ from player.sendMessage.ItemActionPassResponse import ItemActionPassResponse
 from player.sendMessage.PlayerNameResponse import PlayerNameResponse
 from player.sendMessage.SecretNumberResponse import SecretNumberResponse
 from util.commonUtils import add_change, addSuffle, delete_bad_answer, delete_bad_answer_high_low, delete_bad_answer_target, do_change, do_suffle, generate_unique_numbers, create_unique_list
+from strategy import secret
 
 DOMAIN = 'localhost'
 PORT = 8088
@@ -20,7 +21,7 @@ WARNINGTHRESHOLD = 1000
 
 
 class WebSocketClient:
-    def __init__(self, danger: int = DENGERTHRESHOLD, warning: int =  WARNINGTHRESHOLD, name: str =  NAME, domain: str = DOMAIN, port: int = PORT):
+    def __init__(self, danger: int = DENGERTHRESHOLD, warning: int =  WARNINGTHRESHOLD, name: str =  NAME, domain: str = DOMAIN, port: int = PORT, secret_strategy = generate_unique_numbers):
         self._domain = domain
         self._port = port
         self._uri = f"ws://{self._domain}:{self._port}"
@@ -28,10 +29,11 @@ class WebSocketClient:
         self._danger = danger
         self._warning = warning
         self._name = name
+        self._secret_strategy = secret_strategy
         self.initForRound()
 
     def initForRound(self):
-        self._secret = generate_unique_numbers()
+        self._secret = self._secret_strategy()
         self._answerList = create_unique_list()
         self._answerList_oppo = create_unique_list()
         self._trun_flag = 0
@@ -198,5 +200,5 @@ if __name__ == "__main__":
     parser.add_argument("--w", type=int, default=1500,help="Warning threshold")
     parser.add_argument("--n", type=str, default="noname",help="Name")
     args = parser.parse_args()
-    client = WebSocketClient(args.d, args.w, args.n)
+    client = WebSocketClient(args.d, args.w, args.n, secret_strategy=secret.gen_h2l2)
     client.start()
