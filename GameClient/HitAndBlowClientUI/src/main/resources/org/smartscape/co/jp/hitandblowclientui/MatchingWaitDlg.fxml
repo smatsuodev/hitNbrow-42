@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<AnchorPane prefHeight="81.0" prefWidth="151.0" xmlns="http://javafx.com/javafx/17.0.2-ea" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.smartscape.co.jp.hitandblowclientui.dialog.controller.MatchingWaitDlg">
+   <children>
+      <Label alignment="CENTER" contentDisplay="CENTER" layoutY="1.0" prefHeight="91.0" prefWidth="165.0" text="Mattingを待っています。" />
+   </children>
+</AnchorPane>

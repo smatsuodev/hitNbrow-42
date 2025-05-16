@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+    <body>
+        <div>
+            ws://
+            <input id="host" type="text" value="localhost"/>
+            :
+            <input id="port" type="text" value="8088"/>
+            <br>
+            <button id="connectButton">connect</button>
+        </div>
+        <p>recv</p>
+        <div id="recvContainer" style="height: 38vh; overflow-y: scroll; border: solid;">
+            <div id="recvLog"></div>
+        </div>
+        <p>send</p>
+        <div id="sendContainer" style="height: 38vh; overflow-y: scroll; border: solid;">
+            <div id="sendLog"></div>
+        </div>
+        <script>
+            const recvLog = document.getElementById("recvLog");
+            const sendLog = document.getElementById("sendLog");
+            const connectButton = document.getElementById("connectButton");
+            const hostField = document.getElementById("host");
+            const portField = document.getElementById("port");
+            
+            const name = "player" + Math.floor(Math.random() * 50);
+            let secret = createRandomNumber();
+
+            let ws = undefined;
+            
+            connectButton.onclick = ()=>{
+                ws = new WebSocket(`ws://${hostField.value}:${portField.value}`);
+                ws.addEventListener("message", (e) => {
+                    const p = document.createElement("p");
+                    p.style = "margin:0;"
+                    p.textContent += e.data;
+                    recvLog.appendChild(p);
+                    const message = JSON.parse(e.data);
+                    process_action(message);
+                });
+            };
+
+            let itemUsed = false;
+            const usedItems = [];
+            let canUseAttack = true;
+
+            function process_action(message) {
+                switch(message.messageType) {
+                    case "requestPlayerName":
+                        send("requestPlayerName", { playerName: name })
+                        break;
+                    case "requestSecretNumber":
+                        send("requestSecretNumber", { number: secret })
+                        break;
+                    case "requestChallengeNumber":
+                        const number = createRandomNumber()
+                        send("requestChallengeNumber", { action: "call", number: number })
+                        break;
+                    case "requestItemAction":
+                        let action = itemUsed ? 0 : getRandom(5);
+                        if (usedItems.some((e) => e == action)) action = 0;
+                        if (!canUseAttack && (action == 1 | action == 2)) action = 0;
+                        canUseAttack = false;
+
+                        switch (action) {
+                            case 0: // pass
+                                send("requestItemAction-pass", { action: "pass" });
+                                break;
+                            case 1: // target
+                                const number = getRandom(10) + "";
+                                send("requestItemAction-target", { action: "target", number: number });
+                                usedItems.push(action);
+                                itemUsed = true;
+                                break;
+                            case 2: // high-low
+                                send("requestItemAction-high-low", { action: "high-low" });
+                                usedItems.push(action);
+                                itemUsed = true;
+                                break;
+                            case 3: // shuffle
+                                secret = shuffle(secret);
+                                send("requestItemAction-shuffle", { action: "shuffle", number: secret });
+                                usedItems.push(action);
+                                itemUsed = true;
+                                break;
+                            case 4: // change
+                                secret = change(secret);
+                                send("requestItemAction-change", { action: "change", number: secret });
+                                usedItems.push(action);
+                                itemUsed = true;
+                                break;
+                        }
+                        break;
+                    case "opponentActionResult":
+                        itemUsed = false;
+                        canUseAttack = true;
+                        break;
+                    case "roundResult":
+                        usedItems.splice(0);
+                        break;
+                }
+            }
+
+            function shuffle(digits_str) {
+                const digits = [...digits_str];
+                for(let i = digits.length - 1; i > 0; i--) {
+                    const r = getRandom(i + 1);
+                    const tmp = digits[i];
+                    digits[i] = digits[r];
+                    digits[r] = tmp;
+                }
+                return digits.join("");
+            }
+
+            function change(digits_str) {
+                const digits = [...digits_str];
+                const i = getRandom(digits.length);
+                const digit_num = Number(digits[i]);
+
+                while(true) {
+                    let rand = getRandom(5);
+                    if (digit_num > 4) rand += 5;
+                    if (digits.includes(String(rand))) continue;
+                    digits[i] = rand;
+                    break;
+                }
+                return digits.join("");
+            }
+
+            function createRandomNumber() {
+                const digits = [];
+                while(digits.length < 4) {
+                    const digit = getRandom(10);
+                    if (!digits.includes(digit)) {
+                        digits.push(digit);
+                    }
+                }
+                return digits.join("");
+            }
+
+            function getRandom(limit) {
+                return Math.floor(Math.random() * limit);
+            }
+
+            function send(messageType, body) {
+                const message = JSON.stringify({messageType:messageType,body:body});
+                ws.send(message);
+                const p = document.createElement("p");
+                p.style = "margin:0;";
+                p.textContent += message;
+                sendLog.appendChild(p);
+            }
+        </script>
+    </body>
+</html>

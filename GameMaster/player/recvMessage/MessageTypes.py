@@ -1,0 +1,5 @@
+request_secret_number = "^requestSecretNumber$"
+request_player_name = "^requestPlayerName"
+request_challenge_number = "^requestChallengeNumber"
+request_item_action = "^requestItemAction-(pass|target|high-low|shuffle|change)$"
+item_action = "(pass|target|high-low|shuffle|change)"

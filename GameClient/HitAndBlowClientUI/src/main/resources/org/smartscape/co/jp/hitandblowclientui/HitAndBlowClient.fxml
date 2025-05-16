@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox alignment="CENTER_LEFT" fillWidth="false" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="380.0" prefWidth="580.0" spacing="20.0" xmlns="http://javafx.com/javafx/17.0.2-ea" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.smartscape.co.jp.hitandblowclientui.HitAndBlowClientController">
+  <padding>
+    <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
+  </padding>
+   <HBox maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="17.0" prefWidth="364.0">
+      <children>
+         <Label text="自分の値：" />
+         <Label fx:id="myNumber" prefHeight="17.0" prefWidth="306.0" text="値が表示される" />
+      </children></HBox>
+   <HBox maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="22.0" prefWidth="359.0">
+      <children>
+         <HBox prefHeight="93.0" prefWidth="246.0">
+            <children>
+               <Label prefHeight="25.0" prefWidth="58.0" text="入力値：" />
+               <TextField fx:id="number1" alignment="TOP_LEFT" maxWidth="1.7976931348623157E308" prefHeight="25.0" prefWidth="46.0" promptText="数値を入力してください" HBox.hgrow="ALWAYS" />
+            </children>
+         </HBox>
+      </children>
+   </HBox>
+   <HBox maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="25.0" prefWidth="566.0">
+      <children>
+         <Button mnemonicParsing="false" onAction="#onTargetBtn" prefHeight="25.0" prefWidth="85.0" text="ターゲット">
+            <HBox.margin>
+               <Insets left="5.0" />
+            </HBox.margin></Button>
+         <Button mnemonicParsing="false" onAction="#onHiLowBtn" prefWidth="85.0" text="HIGH&amp;LOW">
+            <HBox.margin>
+               <Insets left="5.0" />
+            </HBox.margin></Button>
+         <Button mnemonicParsing="false" onAction="#onShuffleBtn" prefWidth="85.0" text="シャッフル">
+            <HBox.margin>
+               <Insets left="5.0" />
+            </HBox.margin></Button>
+         <Button mnemonicParsing="false" onAction="#onChangeBtn" prefHeight="25.0" prefWidth="85.0" text="チェンジ" HBox.hgrow="NEVER">
+            <HBox.margin>
+               <Insets left="5.0" />
+            </HBox.margin></Button>
+        <Button onAction="#onCallButtonClick" prefHeight="25.0" prefWidth="80.0" text="CALL">
+            <HBox.margin>
+               <Insets left="5.0" />
+            </HBox.margin>
+         </Button>
+         <Button mnemonicParsing="false" onAction="#onNotUseItemBtn" prefHeight="25.0" prefWidth="88.0" text="使用なし">
+            <HBox.margin>
+               <Insets left="5.0" />
+            </HBox.margin>
+         </Button>
+      </children>
+   </HBox>
+   <ScrollPane fitToHeight="true" fitToWidth="true" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" minWidth="364.0">
+      <content>
+         <TextArea fx:id="logText" editable="false" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="10000.0" prefWidth="10000.0" wrapText="true" />
+      </content>
+   </ScrollPane>
+</VBox>
