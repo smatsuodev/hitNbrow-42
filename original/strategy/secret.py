@@ -1,7 +1,5 @@
 import random
 
-DEFAULT_STRATEGY = "hhll"
-
 def factory_secret_strategy(type: str):
     if type == "random":
         return gen_random

@@ -20,18 +20,13 @@ PORT = 8088
 NAME = 'JO'
 DENGERTHRESHOLD = 500
 WARNINGTHRESHOLD = 1000
-SECRET_STRATEGY = secret.gen_hhll
-ESTIMATE_STRATEGY = estimate.MutualInfoStrategy()
-CHALLENGE_CANDIDATE_STRATEGY = candidate.PickFromAnswerStrategy()
-ITEM_STRATEGY = item.DefaultItemStrategy(danger=DENGERTHRESHOLD, warning=WARNINGTHRESHOLD)
-
 
 class WebSocketClient:
     def __init__(self, danger: int = DENGERTHRESHOLD, warning: int =  WARNINGTHRESHOLD, name: str =  NAME, domain: str = DOMAIN, port: int = PORT,
-                 secret_strategy = SECRET_STRATEGY,
-                 estimate_strategy: estimate.EstimateStrategy = ESTIMATE_STRATEGY,
-                 challenge_candidate_strategy: candidate.ChallengeCandidateStrategy = CHALLENGE_CANDIDATE_STRATEGY,
-                 item_strategy: item.ItemStrategy = ITEM_STRATEGY):
+                 secret_strategy = None,
+                 estimate_strategy: estimate.EstimateStrategy = None,
+                 challenge_candidate_strategy: candidate.ChallengeCandidateStrategy = None,
+                 item_strategy: item.ItemStrategy = None):
         self._domain = domain
         self._port = port
         self._uri = f"ws://{self._domain}:{self._port}"
@@ -61,6 +56,7 @@ class WebSocketClient:
         self._oppo_highLow = True
         self._oppo_shuffle = True
         self._oppo_change = True
+        self._game_turn = 0
         
     async def connect(self):
         async with websockets.connect(self._uri) as websocket:
@@ -119,12 +115,15 @@ class WebSocketClient:
                     result_challenge_blow = result_challenge.get("blow")
                     self._answer_list_oppo = delete_bad_answer(result_challenge_hit, result_challenge_blow, result_challenge_number, self._answer_list_oppo)
         elif message_type == "requestItemAction":
+            if self._trun_flag == 0:
+                self._game_turn += 1
             self._trun_flag += 1
             input = item.ItemStrategyInput(
                 can_use_item=self._can_use,
-                turn=self._trun_flag,
+                action_turn=self._trun_flag,
                 answer_list_oppo=self._answer_list_oppo,
                 secret=self._secret,
+                game_turn=self._game_turn,
             )
             output = self._item_strategy.execute(input)
             if output.did_use_item():
@@ -180,6 +179,16 @@ if __name__ == "__main__":
     parser.add_argument("--d", type=int, default=200, help="Danger threshold")
     parser.add_argument("--w", type=int, default=1500,help="Warning threshold")
     parser.add_argument("--n", type=str, default="noname",help="Name")
+    parser.add_argument("--secret", type=str, default="hhll", help="Secret strategy")
+    parser.add_argument("--estimate", type=str, default="mutual_info", help="Estimate strategy")
+    parser.add_argument("--challenge", type=str, default="pick_from_answer", help="Challenge candidate strategy")
+    parser.add_argument("--item", type=str, default="no_item_in_first_turn", help="Item strategy")
     args = parser.parse_args()
-    client = WebSocketClient(args.d, args.w, args.n)
+    print(f"Arguments: {args}")
+    client = WebSocketClient(args.d, args.w, args.n,
+        secret_strategy=secret.factory_secret_strategy(args.secret),
+        estimate_strategy=estimate.factory_estimate_strategy(args.estimate),
+        challenge_candidate_strategy=candidate.factory_challenge_candidate_strategy(args.challenge),
+        item_strategy=item.factory_item_strategy(args.item),
+    )
     client.start()
