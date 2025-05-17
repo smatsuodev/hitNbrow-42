@@ -33,6 +33,13 @@ class EstimateStrategy():
     def estimate(self, input: EstimateInput) -> str:
         pass
 
+    def on_feedback(self, declared_number: str, feedback: str):
+        """
+        フィードバックを受け取ったときの処理。
+        デフォルトでは何もしない。
+        """
+        pass
+
 class DefaultStrategy(EstimateStrategy):
     def estimate(self, input: EstimateInput):
         return input.answerList[0]
@@ -221,7 +228,7 @@ class MutualInfoStrategy(EstimateStrategy):
                 entropy -= prob * math.log2(prob)
         return entropy
 
-    def _update_probabilities(self, declared_number: str, feedback: tuple[int, int]):
+    def on_feedback(self, declared_number: str, feedback: str):
         """
         観測されたフィードバックに基づいて確率分布をベイズ更新します。
         P(Hypothesis_i | Data) = P(Data | Hypothesis_i) * P(Hypothesis_i) / P(Data)
@@ -268,6 +275,10 @@ class MutualInfoStrategy(EstimateStrategy):
 
 
     def estimate(self, input_data: EstimateInput) -> str:
+        # if len(input_data.challengeCandidates) == 5040:
+        #     # どうせこれを返すのでキャッシュする
+        #     return "1245"
+
         # self.probabilities がこの戦略の現在の信念状態。
         # input_data.answerList は、このメソッドが呼び出される時点での外部からの情報だが、
         # ベイズ戦略では self.probabilities が主たる情報源となる。

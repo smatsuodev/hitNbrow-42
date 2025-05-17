@@ -26,7 +26,8 @@ def calculate_hit_blow(secret: str, challenge: str) -> tuple[int, int]:
 
 def add_change(old: list[str], pos: int, highlow: str) -> list[str]:
     """
-    oldのpos番目をhighかlowに変更して、答えの候補を返す
+    oldのpos番目をhighかlowに変更して、答えの候補を返す。
+    変更後の数字の組み合わせが重複禁止ルールに違反しないもののみを保持する。
     """
     high = list(range(5, 10))
     low = list(range(0, 5))
@@ -34,11 +35,25 @@ def add_change(old: list[str], pos: int, highlow: str) -> list[str]:
     new_answers = set()
 
     for ans in old:
-        src = high if highlow == "high" else low
+        if not (0 <= pos < len(ans)): # pos が不正な場合はスキップ
+            continue
+            
+        src_digits_for_change = high if highlow == "high" else low
 
-        for n in src:
-            new_ans = ans[:pos] + str(n) + ans[pos + 1:]
-            new_answers.add(new_ans)
+        original_digit_at_pos = ans[pos]
+
+        for n_candidate in src_digits_for_change:
+            # 変更する数字が、変更対象の位置以外の元の数字と重複しないか確認
+            # かつ、変更する数字が元の位置の数字と異なっていることを確認 (実質的に変更がある場合)
+            # ただし、highlowカテゴリの数字で置き換えるので、元の数字と同じカテゴリの別数字ならOK
+            
+            temp_ans_list = list(ans)
+            temp_ans_list[pos] = str(n_candidate)
+            new_ans = "".join(temp_ans_list)
+
+            # 新しい候補が重複のない4桁であるかチェック
+            if len(new_ans) == 4 and len(set(new_ans)) == 4:
+                new_answers.add(new_ans)
 
     return list(new_answers)
 
@@ -120,3 +135,38 @@ def create_unique_list() -> list[str]:
     unique_list = [''.join(map(str, combination)) for combination in all_combinations]
 
     return unique_list
+
+def get_high_low_info(secret: str) -> tuple[int, int]:
+    """
+    与えられた数字文字列のHIGH(5-9)とLOW(0-4)の個数を返す。
+    """
+    high_count = 0
+    low_count = 0
+    for digit_char in secret:
+        try:
+            digit = int(digit_char)
+            if 0 <= digit <= 4:
+                low_count += 1
+            elif 5 <= digit <= 9:
+                high_count += 1
+            # else: 文字が0-9でない場合は無視するかエラー処理
+        except ValueError:
+            # 数字でない文字が含まれている場合の処理（例：エラーを発生させるか無視）
+            pass # ここでは無視
+    return high_count, low_count
+
+def get_target_feedback(secret: str, target_char: str) -> tuple[int, list[int]]:
+    """
+    与えられた数字文字列(secret)内に指定された数字(target_char)が
+    含まれる個数と、その位置(インデックスのリスト)を返す。
+    """
+    if not (isinstance(target_char, str) and len(target_char) == 1 and target_char.isdigit()):
+        raise ValueError("target_charは1桁の数字文字列である必要があります。")
+
+    count = 0
+    positions = []
+    for i, digit_char in enumerate(secret):
+        if digit_char == target_char:
+            count += 1
+            positions.append(i)
+    return count, positions

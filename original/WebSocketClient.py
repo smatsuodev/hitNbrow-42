@@ -15,7 +15,7 @@ from strategy import estimate
 from strategy import candidate
 from strategy import item
 
-DOMAIN = 'localhost'
+DOMAIN = '10.18.244.193'
 PORT = 8088
 NAME = 'JO'
 DENGERTHRESHOLD = 500
@@ -164,6 +164,7 @@ class WebSocketClient:
             result_hit = result_obj.get("hit")
             result_blow = result_obj.get("blow")
             self._answerList = delete_bad_answer(result_hit, result_blow, result_number, self._answerList)
+            self._estimate_strategy.on_feedback(declared_number=result_number, feedback=f"${result_hit}H${result_blow}B")
         elif message_type == "roundResult":
             self._estimate_strategy.teardown()
             self.initForRound();
@@ -190,7 +191,7 @@ if __name__ == "__main__":
     parser.add_argument("--secret", type=str, default="hhll", help="Secret strategy")
     parser.add_argument("--estimate", type=str, default="mutual_info", help="Estimate strategy")
     parser.add_argument("--candidate", type=str, default="pick_from_answer", help="Challenge candidate strategy")
-    parser.add_argument("--item", type=str, default="no_item_in_first_turn", help="Item strategy")
+    parser.add_argument("--item", type=str, default="default", help="Item strategy")
     args = parser.parse_args()
     print(f"Arguments: {args}")
     client = WebSocketClient(args.d, args.w, args.n,

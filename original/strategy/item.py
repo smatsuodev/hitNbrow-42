@@ -167,7 +167,8 @@ class DefaultItemStrategy(ItemStrategy):
         digit_count = Counter()
         for ans in answer_list_oppo:
             for digit in ans:
-                digit_count[digit] += 1
+                if digit in secret:
+                    digit_count[digit] += 1
         most_frequent_digit = max(digit_count, key=digit_count.get)
         is_high = int(most_frequent_digit) >= 5
         for i in range(len(secret)):
@@ -175,7 +176,7 @@ class DefaultItemStrategy(ItemStrategy):
                 new_num = random.choice(list(filter(lambda x: x >= 5 if is_high else x < 5, unused_digits)))
                 new_secret = secret[:i] + str(new_num) + secret[i+1:]
                 return (new_secret, i, "high" if is_high else "low")
-        return (secret, -1, None)
+        raise ValueError("No change possible")
     
     def _do_shuffle(self, secret: str) -> str:
         secret_list = list(secret)
@@ -233,3 +234,54 @@ class NoItemInFirstTurnItemStrategy(ItemStrategy):
         secret_list = list(secret)
         random.shuffle(secret_list)
         return ''.join(secret_list)
+
+class GameState:
+    def __init__(self, my_secret: str, my_answer_list: list[str], oppo_answer_list: list[str],
+                 me_can_use_target: bool = True, me_can_use_high_low: bool = True,
+                 me_can_use_shuffle: bool = True, me_can_use_change: bool = True,
+                 oppo_can_use_target: bool = True, oppo_can_use_high_low: bool = True,
+                 oppo_can_use_shuffle: bool = True, oppo_can_use_change: bool = True):
+        self.my_secret = my_secret
+        self.my_answer_list = my_answer_list
+        self.oppo_answer_list = oppo_answer_list
+        self.me_can_use_target = me_can_use_target
+        self.me_can_use_high_low = me_can_use_high_low
+        self.me_can_use_shuffle = me_can_use_shuffle
+        self.me_can_use_change = me_can_use_change
+        self.oppo_can_use_target = oppo_can_use_target
+        self.oppo_can_use_high_low = oppo_can_use_high_low
+        self.oppo_can_use_shuffle = oppo_can_use_shuffle
+        self.oppo_can_use_change = oppo_can_use_change
+        self.current_feedback_for_me = None
+        self.current_feedback_for_oppo = None
+
+    def eval(self) -> float:
+        if self.current_feedback_for_me == "4H0B":
+            return 1.0 / len(self.my_answer_list)
+        if self.current_feedback_for_oppo == "4H0B":
+            return -1.0 / len(self.oppo_answer_list)
+        
+        return float(len(self.oppo_answer_list) - len(self.my_answer_list)) / 5040
+    
+    # TODO: hit&blowを１ターン進める
+    def advance(self, item: str, feedback: str):
+        if item == "target":
+            self.oppo_answer_list = util.delete_bad_answer_target(feedback, self.oppo_answer_list)
+        elif item == "high-low":
+            self.oppo_answer_list = util.delete_bad_answer_high_low(feedback, self.oppo_answer_list)
+        elif item == "change":
+            self.my_secret = feedback
+            self.my_answer_list = util.add_change(self.my_answer_list, feedback)
+        elif item == "shuffle":
+            self.my_secret = feedback
+            self.my_answer_list = util.add_shuffle(self.my_answer_list)
+        pass
+
+class MiniMaxItemStrategy(DefaultItemStrategy):
+    def __init__(self):
+        self._depth = 3
+
+    def execute(self, input_data: ItemStrategyInput) -> ItemStrategyOutput:
+        if input_data.action_turn == 2:
+            return self.response_pass()
+
