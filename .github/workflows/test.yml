@@ -1,0 +1,38 @@
+name: GameMaster
+on:
+  pull_request:
+    types: [ opened, synchronize ]
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+      - name: Start Game
+        env:
+          PR_NUMBER: ${{ github.event.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd GameMaster
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install -r requirements.txt
+          python run.py > /tmp/result &
+          GAME_MASTER_PID=$!
+
+          cd ../original
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install -r requirements.txt
+          python WebSocketClient.py --n new &
+          python WebSocketClient.py --n old --secret random --estimate default --item default &
+
+          wait $GAME_MASTER_PID
+          cat /tmp/result | tail -n 2 > /tmp/comment
+          gh pr comment "${PR_NUMBER}" -F /tmp/comment
