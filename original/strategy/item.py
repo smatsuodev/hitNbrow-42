@@ -10,15 +10,18 @@ def factory_item_strategy(type: str):
     """
     if type == "default":
         return DefaultItemStrategy()
+    elif type == "no_item_in_first_turn":
+        return NoItemInFirstTurnItemStrategy()
     else:
         raise ValueError("Unknown strategy type")
 
 class ItemStrategyInput:
-    def __init__(self, turn: int, can_use_item: bool, answer_list_oppo: list[str], secret: str):
-        self.turn = turn
+    def __init__(self, action_turn: int, can_use_item: bool, answer_list_oppo: list[str], secret: str, game_turn: int):
+        self.action_turn = action_turn
         self.can_use_item = can_use_item
         self.answer_list_oppo = answer_list_oppo
         self.secret = secret
+        self.game_turn = game_turn
 
 class ItemStrategyOutput:
     def __init__(self, messageType: str, action: str, number: str | None = None, new_secret: str | None = None,
@@ -135,13 +138,65 @@ class DefaultItemStrategy(ItemStrategy):
         self._warning = 1000
 
     def execute(self, input_data):
-        if (input_data.can_use_item and input_data.turn == 1):
+        if (input_data.can_use_item and input_data.action_turn == 1):
             if (self._use_high_low()):
                 return self.response_highlow()
             elif (self._use_target()):
                 return self.response_target("5") 
 
-        elif (input_data.can_use_item and input_data.turn == 2):
+        elif (input_data.can_use_item and input_data.action_turn == 2):
+            if len(input_data.answer_list_oppo) <= self._danger and self._use_change():
+                new_secret, pos, highlow = self._do_change(input_data.answer_list_oppo, input_data.secret)
+                new_answer_list_oppo = input_data.answer_list_oppo
+                if highlow is not None:
+                    new_answer_list_oppo = util.add_change(input_data.answer_list_oppo, pos, highlow)
+                return self.response_change(new_secret, new_answer_list_oppo)
+
+            if len(input_data.answer_list_oppo) <= self._warning and self._use_shuffle():
+                new_secret = self._do_shuffle(input_data.secret)
+                new_answer_list_oppo = util.add_shuffle(input_data.answer_list_oppo)
+                return self.response_shuffle(new_secret, new_answer_list_oppo)
+
+        return self.response_pass()
+    
+    def _do_change(self, answer_list_oppo: list[str], secret: str) -> tuple[str, int, str | None]:
+        all_digits = set(map(str, range(10)))
+        secret_list = set(secret)
+        unused_digits_set = all_digits - secret_list
+        unused_digits = list(map(int,unused_digits_set))
+        digit_count = Counter()
+        for ans in answer_list_oppo:
+            for digit in ans:
+                digit_count[digit] += 1
+        most_frequent_digit = max(digit_count, key=digit_count.get)
+        is_high = int(most_frequent_digit) >= 5
+        for i in range(len(secret)):
+            if (secret[i] == most_frequent_digit):
+                new_num = random.choice(list(filter(lambda x: x >= 5 if is_high else x < 5, unused_digits)))
+                new_secret = secret[:i] + str(new_num) + secret[i+1:]
+                return (new_secret, i, "high" if is_high else "low")
+        return (secret, -1, None)
+    
+    def _do_shuffle(self, secret: str) -> str:
+        secret_list = list(secret)
+        random.shuffle(secret_list)
+        return ''.join(secret_list)
+
+class NoItemInFirstTurnItemStrategy(ItemStrategy):
+    def __init__(self):
+        self._danger = 500
+        self._warning = 1000
+
+    def execute(self, input_data):
+        if (input_data.game_turn == 1):
+            return self.response_pass()
+        if (input_data.can_use_item and input_data.action_turn == 1):
+            if (self._use_high_low()):
+                return self.response_highlow()
+            elif (self._use_target()):
+                return self.response_target("5") 
+
+        elif (input_data.can_use_item and input_data.action_turn == 2):
             if len(input_data.answer_list_oppo) <= self._danger and self._use_change():
                 new_secret, pos, highlow = self._do_change(input_data.answer_list_oppo, input_data.secret)
                 new_answer_list_oppo = input_data.answer_list_oppo
