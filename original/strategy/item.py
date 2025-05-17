@@ -2,6 +2,16 @@ from collections import Counter
 import random
 from util import util
 
+DEFAULT_STRATEGY = "default"
+
+def factory_item_strategy(type: str):
+    """
+    戦略のファクトリメソッド
+    """
+    if type == "default":
+        return DefaultItemStrategy()
+    else:
+        raise ValueError("Unknown strategy type")
 
 class ItemStrategyInput:
     def __init__(self, turn: int, can_use_item: bool, answer_list_oppo: list[str], secret: str):
@@ -120,9 +130,9 @@ class ItemStrategy:
 
 
 class DefaultItemStrategy(ItemStrategy):
-    def __init__(self, danger: int, warning:int):
-        self._danger = danger
-        self._warning = warning
+    def __init__(self):
+        self._danger = 500
+        self._warning = 1000
 
     def execute(self, input_data):
         if (input_data.can_use_item and input_data.turn == 1):

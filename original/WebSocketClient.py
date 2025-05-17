@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+from typing import Literal
 import websockets
 import json
 
@@ -14,12 +15,12 @@ from strategy import estimate
 from strategy import candidate
 from strategy import item
 
-DOMAIN = '10.18.239.70'
+DOMAIN = 'localhost'
 PORT = 8088
 NAME = 'JO'
 DENGERTHRESHOLD = 500
 WARNINGTHRESHOLD = 1000
-SECRET_STRATEGY = secret.gen_h2l2
+SECRET_STRATEGY = secret.gen_hhll
 ESTIMATE_STRATEGY = estimate.MutualInfoStrategy()
 CHALLENGE_CANDIDATE_STRATEGY = candidate.PickFromAnswerStrategy()
 ITEM_STRATEGY = item.DefaultItemStrategy(danger=DENGERTHRESHOLD, warning=WARNINGTHRESHOLD)

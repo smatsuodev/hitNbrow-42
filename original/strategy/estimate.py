@@ -5,6 +5,8 @@ from util import feedback as feedback_module
 import os
 from concurrent.futures import ProcessPoolExecutor
 
+DEFAULT_STRATEGY = "mutual_info"
+
 def factory_estimate_strategy(type: str):
     if type == "default":
         return DefaultStrategy()

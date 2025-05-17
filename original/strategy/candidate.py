@@ -1,5 +1,7 @@
 from util.util import create_unique_list
 
+DEAFULT_STRATEGY = "pick_from_answer"
+
 def factory_challenge_candidate_strategy(type: str):
     """
     戦略のファクトリメソッド

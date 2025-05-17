@@ -57,14 +57,14 @@ class Master:
             if e.winner is not None:
                 self.context.add_score(e.winner.player_number)
         else:
-            for round_number in range(1, 10):
+            for round_number in range(1, 100):
                 print(f'start round {round_number}')
                 round_winner = await self.start_game()
 
                 await self.send_round_result(round_winner)
                 self.context.add_score(round_winner)
 
-                await asyncio.sleep(5)
+                # await asyncio.sleep(5)
                 await self.next_round()
 
         winner = self.context.get_winner()
