@@ -38,6 +38,7 @@ class WebSocketClient:
         self._estimate_strategy = estimate_strategy
         self._challenge_candidate_strategy = challenge_candidate_strategy
         self._item_strategy = item_strategy
+        self._round = 0
         self.initForRound()
 
     def initForRound(self):
@@ -57,6 +58,7 @@ class WebSocketClient:
         self._oppo_shuffle = True
         self._oppo_change = True
         self._game_turn = 0
+        self._round += 1
         
     async def connect(self):
         async with websockets.connect(self._uri) as websocket:
@@ -148,7 +150,10 @@ class WebSocketClient:
             input = estimate.EstimateInput(
                 answerList=self._answerList,
                 challengeCandidates=self._challenge_candidate_strategy.candidates(
-                    candidate.ChallengeCandidateInput(answerList=self._answerList)
+                    candidate.ChallengeCandidateInput(
+                        answer_list=self._answerList,
+                        game_turn=self._game_turn
+                    )
                 )
             )
             response = ChallengeNumberResponse(self._estimate_strategy.estimate(input))
@@ -162,6 +167,9 @@ class WebSocketClient:
         elif message_type == "roundResult":
             self._estimate_strategy.teardown()
             self.initForRound();
+        elif message_type == "tellPlayerNumber":
+            self._player_number = message.get("body").get("playerNumber")
+
             
             
     async def send(self, websocket, message):
@@ -181,14 +189,14 @@ if __name__ == "__main__":
     parser.add_argument("--n", type=str, default="noname",help="Name")
     parser.add_argument("--secret", type=str, default="hhll", help="Secret strategy")
     parser.add_argument("--estimate", type=str, default="mutual_info", help="Estimate strategy")
-    parser.add_argument("--challenge", type=str, default="pick_from_answer", help="Challenge candidate strategy")
+    parser.add_argument("--candidate", type=str, default="pick_from_answer", help="Challenge candidate strategy")
     parser.add_argument("--item", type=str, default="no_item_in_first_turn", help="Item strategy")
     args = parser.parse_args()
     print(f"Arguments: {args}")
     client = WebSocketClient(args.d, args.w, args.n,
         secret_strategy=secret.factory_secret_strategy(args.secret),
         estimate_strategy=estimate.factory_estimate_strategy(args.estimate),
-        challenge_candidate_strategy=candidate.factory_challenge_candidate_strategy(args.challenge),
+        challenge_candidate_strategy=candidate.factory_challenge_candidate_strategy(args.candidate),
         item_strategy=item.factory_item_strategy(args.item),
     )
     client.start()
