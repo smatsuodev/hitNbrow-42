@@ -5,6 +5,8 @@ from util import feedback as feedback_module
 import os
 from concurrent.futures import ProcessPoolExecutor
 
+DEFAULT_STRATEGY = "mutual_info"
+
 def factory_estimate_strategy(type: str):
     if type == "default":
         return DefaultStrategy()
@@ -134,26 +136,54 @@ class BLandyStrategy(EstimateStrategy):
 # 並列処理のためのワーカー関数 (モジュールのトップレベルに配置)
 def _worker_calculate_mi(args_tuple):
     # 引数をアンパック
-    declared_num_candidate, answer_list_local, current_entropy_H_X_local, \
-    total_answers_in_list_local, calculate_hit_and_blow_func, \
-    static_calculate_entropy_func = args_tuple
+    declared_num_candidate, answer_list_local_keys, current_entropy_H_X_local, \
+    probabilities_local, calculate_hit_and_blow_func, \
+    calculate_entropy_from_probs_func = args_tuple
 
     expected_conditional_entropy_H_X_given_S = 0.0
-    feedback_to_posterior_subset = {}
+    feedback_to_posterior_info = {} #キー: fb, 値: (候補リスト, その候補リストの合計確率)
 
-    for actual_num_candidate in answer_list_local:
+    # answer_list_local_keys は確率が0より大きい候補のキーリスト
+    for actual_num_candidate in answer_list_local_keys:
+        # probabilities_local から actual_num_candidate の確率を取得
+        prob_actual_num_candidate = probabilities_local.get(actual_num_candidate, 0.0)
+        if prob_actual_num_candidate == 0: # 確率0の候補はスキップ
+            continue
         try:
             fb = calculate_hit_and_blow_func(declared_num_candidate, actual_num_candidate)
-            feedback_to_posterior_subset.setdefault(fb, []).append(actual_num_candidate)
+            
+            current_subset_candidates, current_subset_prob_sum = feedback_to_posterior_info.get(fb, ([], 0.0))
+            current_subset_candidates.append(actual_num_candidate)
+            current_subset_prob_sum += prob_actual_num_candidate
+            feedback_to_posterior_info[fb] = (current_subset_candidates, current_subset_prob_sum)
+
         except ValueError:
             continue
     
-    if not feedback_to_posterior_subset:
+    if not feedback_to_posterior_info:
         mutual_info = -float('inf')
     else:
-        for fb_pattern, posterior_subset in feedback_to_posterior_subset.items():
-            prob_feedback_p_R_given_S = len(posterior_subset) / total_answers_in_list_local
-            entropy_posterior_H_X_given_S_R = static_calculate_entropy_func(posterior_subset)
+        # P(S) に相当する、現在の全候補の確率の合計 (正規化されていればほぼ1)
+        current_total_probability_sum = sum(probabilities_local.get(cand, 0.0) for cand in answer_list_local_keys)
+        if current_total_probability_sum == 0: # 通常ありえない
+             return declared_num_candidate, -float('inf')
+
+        for fb_pattern, (posterior_subset_candidates, posterior_subset_total_prob) in feedback_to_posterior_info.items():
+            if posterior_subset_total_prob == 0:
+                continue
+
+            # P(R|S) = P(R) = sum_{x in posterior_subset} P(x) / sum_{all_x} P(x)
+            # P(x) は現在の信念 probabilities_local[x]
+            prob_feedback_p_R_given_S = posterior_subset_total_prob / current_total_probability_sum
+            
+            # このフィードバックが得られた後の、部分集合の正規化された確率分布
+            # P(X|R,S) = P(X|S) / P(R|S) if X in R else 0
+            normalized_posterior_probs = {
+                cand: probabilities_local[cand] / posterior_subset_total_prob
+                for cand in posterior_subset_candidates if probabilities_local.get(cand, 0.0) > 0
+            }
+            
+            entropy_posterior_H_X_given_S_R = calculate_entropy_from_probs_func(normalized_posterior_probs)
             expected_conditional_entropy_H_X_given_S += prob_feedback_p_R_given_S * entropy_posterior_H_X_given_S_R
         
         mutual_info = current_entropy_H_X_local - expected_conditional_entropy_H_X_given_S
@@ -161,71 +191,140 @@ def _worker_calculate_mi(args_tuple):
     return declared_num_candidate, mutual_info
 
 class MutualInfoStrategy(EstimateStrategy):
-    @staticmethod # 並列処理で使いやすくする
-    def _calculate_entropy_from_list(current_answer_list: list[str]) -> float:
-        """
-        候補リストからエントロピーを計算します。
-        リスト内の各項目は等確率であると仮定します。
-        H(X) = log2(N) ここで N はアイテム数。
-        """
-        n = len(current_answer_list)
-        if n <= 1:  # log2(1)=0. n=0 の場合、情報量は0。
-            return 0.0
-        return math.log2(n)
+    def __init__(self):
+        super().__init__()
+        self.probabilities: dict[str, float] = {}
+        self.feedback_module = feedback_module # feedback_moduleへの参照を保持
 
-    def estimate(self, input_data: EstimateInput) -> str: # Renamed input to input_data to avoid conflict with builtin
-        answerList = input_data.answerList
+    def setup(self):
+        """
+        戦略を初期化し、候補リストに基づいて確率分布を均等に設定します。
+        """
         
-        if not answerList:
-            # 候補リストが空の場合、宣言可能な最初の数字をフォールバックとして返す
-            all_possible_declarations_fb = util.create_unique_list()
-            if not all_possible_declarations_fb:
+        initial_answer_list = util.create_unique_list()
+        num_candidates = len(initial_answer_list)
+        if num_candidates == 0:
+            self.probabilities = {}
+            return
+        prob_per_candidate = 1.0 / num_candidates
+        self.probabilities = {candidate: prob_per_candidate for candidate in initial_answer_list}
+
+    @staticmethod
+    def _calculate_entropy_from_probabilities(probabilities: dict[str, float]) -> float:
+        """
+        確率分布からエントロピーを計算します。 H(X) = -sum(p_i * log2(p_i))
+        """
+        if not probabilities:
+            return 0.0
+        
+        entropy = 0.0
+        for prob in probabilities.values():
+            if prob > 0: # log2(0) を避ける
+                entropy -= prob * math.log2(prob)
+        return entropy
+
+    def _update_probabilities(self, declared_number: str, feedback: tuple[int, int]):
+        """
+        観測されたフィードバックに基づいて確率分布をベイズ更新します。
+        P(Hypothesis_i | Data) = P(Data | Hypothesis_i) * P(Hypothesis_i) / P(Data)
+        ここで Hypothesis_i は各候補、Data は観測されたフィードバック。
+        P(Data | Hypothesis_i) は尤度 (likelihood)。
+        P(Hypothesis_i) は事前確率 (prior probability)。
+        P(Data) は正規化定数。
+        """
+        if not self.probabilities:
+            return
+
+        new_probabilities_unnormalized = {}
+        normalization_factor = 0.0
+
+        for candidate, prior_prob in self.probabilities.items():
+            if prior_prob == 0: # 事前確率0の候補は事後確率も0
+                new_probabilities_unnormalized[candidate] = 0.0
+                continue
+            
+            try:
+                # 尤度 P(Data | Hypothesis_i):
+                # candidate が真の答えであると仮定したとき、declared_number に対して feedback が得られる確率。
+                # この問題設定では、フィードバックは決定的であるため、尤度は1か0。
+                actual_feedback = self.feedback_module.calculate_hit_and_blow(declared_number, candidate)
+                likelihood = 1.0 if actual_feedback == feedback else 0.0
+            except ValueError: # 不正な候補など
+                likelihood = 0.0
+
+            posterior_unnormalized = prior_prob * likelihood
+            new_probabilities_unnormalized[candidate] = posterior_unnormalized
+            normalization_factor += posterior_unnormalized
+        
+        if normalization_factor > 0:
+            self.probabilities = {
+                cand: unnorm_prob / normalization_factor
+                for cand, unnorm_prob in new_probabilities_unnormalized.items()
+            }
+        else:
+            # 観測されたフィードバックと矛盾しない候補が一つもなかった場合。
+            # これは通常、誤ったフィードバックや、ありえない状況を示唆する。
+            # 全ての候補の確率を0にするか、エラー処理を行う。
+            # ここでは、全ての候補の確率を0として扱う。
+            self.probabilities = {cand: 0.0 for cand in new_probabilities_unnormalized}
+
+
+    def estimate(self, input_data: EstimateInput) -> str:
+        # self.probabilities がこの戦略の現在の信念状態。
+        # input_data.answerList は、このメソッドが呼び出される時点での外部からの情報だが、
+        # ベイズ戦略では self.probabilities が主たる情報源となる。
+        # setup や update_probabilities が適切に呼ばれていることを前提とする。
+
+        active_candidates = [cand for cand, prob in self.probabilities.items() if prob > 0.0]
+
+        if not active_candidates:
+            # 確率が0より大きい候補がない場合、フォールバック。
+            # challengeCandidates があればそれの先頭、なければ全候補リストから。
+            fallback_declarations = input_data.challengeCandidates if input_data.challengeCandidates else util.create_unique_list()
+            if not fallback_declarations:
                  raise ValueError("宣言可能な数字のリストが生成できませんでした。")
-            return all_possible_declarations_fb[0]
+            return fallback_declarations[0]
 
-        if len(answerList) == 1:
-            # 候補が1つしかない場合は、それが答え
-            return answerList[0]
+        if len(active_candidates) == 1:
+            # 候補が1つしかない場合は、それが答え。
+            return active_candidates[0]
 
-        # H(X): 現在の候補リストのエントロピー
-        current_entropy_H_X = MutualInfoStrategy._calculate_entropy_from_list(answerList) # staticmethodとして呼び出し
+        # H(X): 現在の確率分布のエントロピー
+        current_entropy_H_X = MutualInfoStrategy._calculate_entropy_from_probabilities(self.probabilities)
 
         # 宣言候補のリスト
         possible_declarations = input_data.challengeCandidates
         if not possible_declarations:
-            # このケースは上の answerList が空の場合のフォールバックでもチェックされるが、念のため
+            # このケースは上の active_candidates が空の場合のフォールバックでもチェックされるが、念のため
             raise ValueError("宣言可能な数字のリストが生成できませんでした。")
 
         best_declaration = ""
         max_mutual_info = -float('inf')
         
-        total_answers_in_list = len(answerList)
-
         tasks = []
         for declared_num_candidate in possible_declarations:
             tasks.append((
                 declared_num_candidate,
-                answerList, 
+                active_candidates, # 確率が0より大きい候補のキーリスト
                 current_entropy_H_X,
-                total_answers_in_list,
-                feedback_module.calculate_hit_and_blow, # 関数自体を渡す
-                MutualInfoStrategy._calculate_entropy_from_list # staticmethodを渡す
+                self.probabilities, # 現在の確率分布全体
+                self.feedback_module.calculate_hit_and_blow,
+                MutualInfoStrategy._calculate_entropy_from_probabilities 
             ))
 
         run_sequentially = False
-        if not tasks:
+        if not tasks: # 通常、possible_declarationsがあればタスクは空にならない
             if possible_declarations: return possible_declarations[0]
             raise ValueError("処理するタスクがありません。宣言可能な数字のリストが空の可能性があります。")
 
         # タスク数が非常に少ない場合は並列化のオーバーヘッドが大きくなる可能性があるため逐次実行
-        # この閾値は環境や問題のサイズによって調整が必要
-        if len(tasks) < os.cpu_count() or len(tasks) < 4 : # 例: CPUコア数未満または4未満なら逐次
+        if len(tasks) < os.cpu_count() or len(tasks) < 4 : 
             run_sequentially = True
         
         if not run_sequentially:
             try:
                 num_workers = min(os.cpu_count(), len(tasks))
-                if num_workers < 1 : num_workers = 1 # 少なくとも1ワーカー
+                if num_workers < 1 : num_workers = 1 
 
                 all_results = []
                 with ProcessPoolExecutor(max_workers=num_workers) as executor:
@@ -238,37 +337,56 @@ class MutualInfoStrategy(EstimateStrategy):
                     elif res_mi == max_mutual_info:
                         if not best_declaration: 
                             best_declaration = res_candidate
-                        # 必要であれば辞書順などのタイブレーク処理を追加
-                        # elif best_declaration and res_candidate < best_declaration:
-                        #    best_declaration = res_candidate
+                        # 辞書順などのタイブレーク処理
+                        elif best_declaration and res_candidate < best_declaration:
+                           best_declaration = res_candidate
                 
                 # 全ての相互情報量が-infだった場合など、best_declarationが設定されない場合へのフォールバック
                 if not best_declaration and possible_declarations:
                     best_declaration = possible_declarations[0]
 
             except Exception: # 例: PicklingErrorなど、並列処理中の予期せぬエラー
-                # print(f"並列処理中にエラーが発生しました: {e}。逐次処理にフォールバックします。") # 必要に応じてログ出力
+                # print(f"並列処理中にエラーが発生しました: {e}。逐次処理にフォールバックします。") 
                 run_sequentially = True
         
         if run_sequentially:
             # 元の逐次処理ループ
+            current_total_probability_sum_seq = sum(self.probabilities.get(cand, 0.0) for cand in active_candidates)
+            if current_total_probability_sum_seq == 0: # 通常ありえない
+                 return possible_declarations[0] if possible_declarations else util.create_unique_list()[0]
+
             for declared_num_candidate_seq in possible_declarations:
                 expected_conditional_entropy_H_X_given_S_seq = 0.0
-                feedback_to_posterior_subset_seq = {} 
+                feedback_to_posterior_info_seq = {} 
 
-                for actual_num_candidate_seq in answerList:
+                for actual_num_candidate_seq in active_candidates:
+                    prob_actual_num_candidate_seq = self.probabilities.get(actual_num_candidate_seq, 0.0)
+                    if prob_actual_num_candidate_seq == 0:
+                        continue
                     try:
-                        fb_seq = feedback_module.calculate_hit_and_blow(declared_num_candidate_seq, actual_num_candidate_seq)
-                        feedback_to_posterior_subset_seq.setdefault(fb_seq, []).append(actual_num_candidate_seq)
+                        fb_seq = self.feedback_module.calculate_hit_and_blow(declared_num_candidate_seq, actual_num_candidate_seq)
+                        
+                        current_subset_candidates_seq, current_subset_prob_sum_seq = feedback_to_posterior_info_seq.get(fb_seq, ([], 0.0))
+                        current_subset_candidates_seq.append(actual_num_candidate_seq)
+                        current_subset_prob_sum_seq += prob_actual_num_candidate_seq
+                        feedback_to_posterior_info_seq[fb_seq] = (current_subset_candidates_seq, current_subset_prob_sum_seq)
                     except ValueError: 
                         continue
                 
-                if not feedback_to_posterior_subset_seq:
+                if not feedback_to_posterior_info_seq:
                     mutual_info_seq = -float('inf')
                 else:
-                    for fb_pattern_seq, posterior_subset_seq in feedback_to_posterior_subset_seq.items():
-                        prob_feedback_p_R_given_S_seq = len(posterior_subset_seq) / total_answers_in_list
-                        entropy_posterior_H_X_given_S_R_seq = MutualInfoStrategy._calculate_entropy_from_list(posterior_subset_seq)
+                    for fb_pattern_seq, (posterior_subset_candidates_seq, posterior_subset_total_prob_seq) in feedback_to_posterior_info_seq.items():
+                        if posterior_subset_total_prob_seq == 0:
+                            continue
+
+                        prob_feedback_p_R_given_S_seq = posterior_subset_total_prob_seq / current_total_probability_sum_seq
+                        
+                        normalized_posterior_probs_seq = {
+                            cand: self.probabilities[cand] / posterior_subset_total_prob_seq
+                            for cand in posterior_subset_candidates_seq if self.probabilities.get(cand, 0.0) > 0
+                        }
+                        entropy_posterior_H_X_given_S_R_seq = MutualInfoStrategy._calculate_entropy_from_probabilities(normalized_posterior_probs_seq)
                         expected_conditional_entropy_H_X_given_S_seq += prob_feedback_p_R_given_S_seq * entropy_posterior_H_X_given_S_R_seq
                     
                     mutual_info_seq = current_entropy_H_X - expected_conditional_entropy_H_X_given_S_seq
@@ -279,8 +397,8 @@ class MutualInfoStrategy(EstimateStrategy):
                 elif mutual_info_seq == max_mutual_info:
                     if not best_declaration:
                         best_declaration = declared_num_candidate_seq
-                    # elif best_declaration and declared_num_candidate_seq < best_declaration: # Optional tie-break
-                    #    best_declaration = declared_num_candidate_seq
+                    elif best_declaration and declared_num_candidate_seq < best_declaration: 
+                       best_declaration = declared_num_candidate_seq
             
             if not best_declaration and possible_declarations:
                  best_declaration = possible_declarations[0]
@@ -291,6 +409,9 @@ class MutualInfoStrategy(EstimateStrategy):
             if possible_declarations:
                 return possible_declarations[0] 
             else:
-                raise ValueError("最適な宣言が見つからず、フォールバックもできませんでした。possible_declarationsが空の可能性があります。")
+                # フォールバック用の宣言リストも生成できない場合はエラー
+                all_possible_fb = util.create_unique_list()
+                if not all_possible_fb: raise ValueError("最適な宣言が見つからず、フォールバックもできませんでした。possible_declarationsが空の可能性があります。")
+                return all_possible_fb[0]
             
         return best_declaration
