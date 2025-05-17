@@ -34,5 +34,5 @@ jobs:
           python WebSocketClient.py --n old --secret random --estimate default --item default > /dev/null &
 
           wait $GAME_MASTER_PID
-          cat /tmp/result | tail -n 2 > /tmp/comment
+          cat /tmp/result | tail -n 100 > /tmp/comment
           gh pr comment "${PR_NUMBER}" -F /tmp/comment
