@@ -38,6 +38,7 @@ class WebSocketClient:
         self._estimate_strategy = estimate_strategy
         self._challenge_candidate_strategy = challenge_candidate_strategy
         self._item_strategy = item_strategy
+        self._round = 0
         self.initForRound()
 
     def initForRound(self):
@@ -57,6 +58,7 @@ class WebSocketClient:
         self._oppo_shuffle = True
         self._oppo_change = True
         self._game_turn = 0
+        self._round += 1
         
     async def connect(self):
         async with websockets.connect(self._uri) as websocket:
@@ -165,6 +167,9 @@ class WebSocketClient:
         elif message_type == "roundResult":
             self._estimate_strategy.teardown()
             self.initForRound();
+        elif message_type == "tellPlayerNumber":
+            self._player_number = message.get("body").get("playerNumber")
+
             
             
     async def send(self, websocket, message):
