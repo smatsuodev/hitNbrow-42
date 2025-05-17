@@ -1,9 +1,19 @@
 import math
 from collections import Counter
-from util import commonUtils
+from util import util
 from util import feedback as feedback_module
 import os
 from concurrent.futures import ProcessPoolExecutor
+
+def factory_estimate_strategy(type: str):
+    if type == "default":
+        return DefaultStrategy()
+    elif type == "blandy":
+        return BLandyStrategy()
+    elif type == "mutual_info":
+        return MutualInfoStrategy()
+    else:
+        raise ValueError("Unknown strategy type")
 
 class EstimateInput:
     def __init__(self, answerList: list[str], challengeCandidates: list[str]):
@@ -12,6 +22,12 @@ class EstimateInput:
 
 class EstimateStrategy():
     def __init__(self):
+        pass
+
+    def setup(self):
+        pass
+
+    def teardown(self):
         pass
 
     def estimate(self, input: EstimateInput) -> str:
@@ -162,7 +178,7 @@ class MutualInfoStrategy(EstimateStrategy):
         
         if not answerList:
             # 候補リストが空の場合、宣言可能な最初の数字をフォールバックとして返す
-            all_possible_declarations_fb = commonUtils.create_unique_list()
+            all_possible_declarations_fb = util.create_unique_list()
             if not all_possible_declarations_fb:
                  raise ValueError("宣言可能な数字のリストが生成できませんでした。")
             return all_possible_declarations_fb[0]
