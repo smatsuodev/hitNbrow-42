@@ -39,7 +39,7 @@ jobs:
           source .venv/bin/activate
           python -m pip install -r requirements.txt
           python WebSocketClient.py --n new > /dev/null &
-          python WebSocketClient.py --n old --secret random --estimate default --item default > /dev/null &
+          python WebSocketClient.py --n new > /dev/null &
 
           wait $GAME_MASTER_PID
           cat /tmp/result | tail -n 100 > /tmp/comment
