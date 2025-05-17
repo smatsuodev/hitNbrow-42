@@ -14,7 +14,7 @@ from strategy import estimate
 from strategy import candidate
 from strategy import item
 
-DOMAIN = 'localhost'
+DOMAIN = '10.18.239.70'
 PORT = 8088
 NAME = 'JO'
 DENGERTHRESHOLD = 500
