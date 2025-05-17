@@ -1,5 +1,7 @@
 from collections import Counter
+import math
 import random
+import sys
 from util import util
 
 DEFAULT_STRATEGY = "default"
@@ -12,25 +14,34 @@ def factory_item_strategy(type: str):
         return DefaultItemStrategy()
     elif type == "no_item_in_first_turn":
         return NoItemInFirstTurnItemStrategy()
+    elif type == "use_target_after_shuffle":
+        return UseTargetAfterShuffleStrategy()
     else:
         raise ValueError("Unknown strategy type")
 
 class ItemStrategyInput:
-    def __init__(self, action_turn: int, can_use_item: bool, answer_list_oppo: list[str], secret: str, game_turn: int):
+    def __init__(self, action_turn: int, can_use_item: bool, answer_list_oppo: list[str], secret: str, game_turn: int, answer_list: list[str],
+                 can_oppo_use_shuffle: bool = False, can_oppo_use_target: bool = False,
+                 oppo_last_target: dict | None = None):
         self.action_turn = action_turn
         self.can_use_item = can_use_item
         self.answer_list_oppo = answer_list_oppo
         self.secret = secret
         self.game_turn = game_turn
+        self.answer_list = answer_list
+        self.can_oppo_use_shuffle = can_oppo_use_shuffle
+        self.can_oppo_use_target = can_oppo_use_target
+        self.oppo_last_target = oppo_last_target
 
 class ItemStrategyOutput:
     def __init__(self, messageType: str, action: str, number: str | None = None, new_secret: str | None = None,
-                 new_answer_list_oppo: list[str] | None = None):
+                 new_answer_list_oppo: list[str] | None = None, oppo_last_target: dict | None = None):
         self.messageType = messageType
         self.action = action
         self.number = number
         self.new_secret = new_secret
         self.new_answer_list_oppo = new_answer_list_oppo
+        self.oppo_last_target = oppo_last_target
 
     def did_use_item(self) -> bool:
         return self.action != "pass"
@@ -142,7 +153,7 @@ class DefaultItemStrategy(ItemStrategy):
             if (self._use_high_low()):
                 return self.response_highlow()
             elif (self._use_target()):
-                return self.response_target("5") 
+                return self.response_target(self._do_target(input_data.answer_list)) 
 
         elif (input_data.can_use_item and input_data.action_turn == 2):
             if len(input_data.answer_list_oppo) <= self._danger and self._use_change():
@@ -182,13 +193,61 @@ class DefaultItemStrategy(ItemStrategy):
         secret_list = list(secret)
         random.shuffle(secret_list)
         return ''.join(secret_list)
+    
+    def _calculate_entropy(self, hist: Counter) -> float:
+        entropy = 0.0
+        # フィードバックのキー（パターン文字列）でソートして計算の一貫性を保つ
+        # Counter.items() は (要素, カウント) のタプルを返すので、キー item[0] でソート
+        sorted_items = sorted(hist.items(), key=lambda item: item[0])
 
-class NoItemInFirstTurnItemStrategy(ItemStrategy):
+        for _, count in sorted_items:
+            buf = 1.0
+            
+            abs_count = abs(count) # count は常に正のはずだが、Goの実装に合わせる
+            entropy += buf * abs_count * math.log(1 + abs_count)
+        return entropy
+
+    def _do_target(self, answer_list: list[str]) -> str:
+        used_numbers = set()
+        for answer in answer_list:
+            for digit in answer:
+                used_numbers.add(digit)
+
+        used_numbers = list(used_numbers)
+        min_entropy = float("inf")
+        best_target = ""
+
+        if not answer_list:
+            return used_numbers[0]
+
+        for target in used_numbers:
+            hist = Counter()
+
+            for answer in answer_list:
+                index = answer.find(target)
+                hist[index] += 1
+
+            
+            if not hist:
+                current_entropy = float('inf') # この宣言は避ける
+            else:
+                current_entropy = self._calculate_entropy(hist)
+
+            if current_entropy < min_entropy:
+                min_entropy = current_entropy
+                best_target = target
+            elif current_entropy == min_entropy:
+                pass
+
+        return best_target
+
+
+class NoItemInFirstTurnItemStrategy(DefaultItemStrategy):
     def __init__(self):
         self._danger = 500
         self._warning = 1000
 
-    def execute(self, input_data):
+    def execute(self, input_data: ItemStrategyInput) -> ItemStrategyOutput:
         if (input_data.game_turn == 1):
             return self.response_pass()
         if (input_data.can_use_item and input_data.action_turn == 1):
@@ -211,77 +270,42 @@ class NoItemInFirstTurnItemStrategy(ItemStrategy):
                 return self.response_shuffle(new_secret, new_answer_list_oppo)
 
         return self.response_pass()
-    
-    def _do_change(self, answer_list_oppo: list[str], secret: str) -> tuple[str, int, str | None]:
-        all_digits = set(map(str, range(10)))
-        secret_list = set(secret)
-        unused_digits_set = all_digits - secret_list
-        unused_digits = list(map(int,unused_digits_set))
-        digit_count = Counter()
-        for ans in answer_list_oppo:
-            for digit in ans:
-                digit_count[digit] += 1
-        most_frequent_digit = max(digit_count, key=digit_count.get)
-        is_high = int(most_frequent_digit) >= 5
-        for i in range(len(secret)):
-            if (secret[i] == most_frequent_digit):
-                new_num = random.choice(list(filter(lambda x: x >= 5 if is_high else x < 5, unused_digits)))
-                new_secret = secret[:i] + str(new_num) + secret[i+1:]
-                return (new_secret, i, "high" if is_high else "low")
-        return (secret, -1, None)
-    
-    def _do_shuffle(self, secret: str) -> str:
-        secret_list = list(secret)
-        random.shuffle(secret_list)
-        return ''.join(secret_list)
 
-class GameState:
-    def __init__(self, my_secret: str, my_answer_list: list[str], oppo_answer_list: list[str],
-                 me_can_use_target: bool = True, me_can_use_high_low: bool = True,
-                 me_can_use_shuffle: bool = True, me_can_use_change: bool = True,
-                 oppo_can_use_target: bool = True, oppo_can_use_high_low: bool = True,
-                 oppo_can_use_shuffle: bool = True, oppo_can_use_change: bool = True):
-        self.my_secret = my_secret
-        self.my_answer_list = my_answer_list
-        self.oppo_answer_list = oppo_answer_list
-        self.me_can_use_target = me_can_use_target
-        self.me_can_use_high_low = me_can_use_high_low
-        self.me_can_use_shuffle = me_can_use_shuffle
-        self.me_can_use_change = me_can_use_change
-        self.oppo_can_use_target = oppo_can_use_target
-        self.oppo_can_use_high_low = oppo_can_use_high_low
-        self.oppo_can_use_shuffle = oppo_can_use_shuffle
-        self.oppo_can_use_change = oppo_can_use_change
-        self.current_feedback_for_me = None
-        self.current_feedback_for_oppo = None
-
-    def eval(self) -> float:
-        if self.current_feedback_for_me == "4H0B":
-            return 1.0 / len(self.my_answer_list)
-        if self.current_feedback_for_oppo == "4H0B":
-            return -1.0 / len(self.oppo_answer_list)
-        
-        return float(len(self.oppo_answer_list) - len(self.my_answer_list)) / 5040
-    
-    # TODO: hit&blowを１ターン進める
-    def advance(self, item: str, feedback: str):
-        if item == "target":
-            self.oppo_answer_list = util.delete_bad_answer_target(feedback, self.oppo_answer_list)
-        elif item == "high-low":
-            self.oppo_answer_list = util.delete_bad_answer_high_low(feedback, self.oppo_answer_list)
-        elif item == "change":
-            self.my_secret = feedback
-            self.my_answer_list = util.add_change(self.my_answer_list, feedback)
-        elif item == "shuffle":
-            self.my_secret = feedback
-            self.my_answer_list = util.add_shuffle(self.my_answer_list)
-        pass
-
-class MiniMaxItemStrategy(DefaultItemStrategy):
-    def __init__(self):
-        self._depth = 3
-
+class UseTargetAfterShuffleStrategy(DefaultItemStrategy):
     def execute(self, input_data: ItemStrategyInput) -> ItemStrategyOutput:
-        if input_data.action_turn == 2:
-            return self.response_pass()
+        if (not input_data.can_oppo_use_shuffle and self._use_target()):
+            return self.response_target(self._do_target(input_data.answer_list))
+        
+        if (not input_data.can_oppo_use_target
+            and int(input_data.oppo_last_target["position"]) >= 0
+            and self._use_change()
+            ):
+            number = input_data.oppo_last_target["number"]
+            pos = input_data.oppo_last_target["position"]
+            print(f"number: {number}, pos: {pos}", file=sys.stderr)
+            is_high = number >= 5
+            unused_digits = set(map(str, range(10))) - set(input_data.secret)
+            new_num = random.choice(list(filter(lambda x: x >= 5 if is_high else x < 5, map(int, unused_digits))))
+            new_secret = input_data.secret[:pos] + str(new_num) + input_data.secret[pos+1:]
+            highlow = "high" if is_high else "low"
+            new_answer_list_oppo = util.add_change(input_data.answer_list_oppo, pos, highlow)
+            return self.response_change(new_secret, new_answer_list_oppo)
+        
+        if (input_data.can_use_item and input_data.action_turn == 1):
+            if (self._use_high_low()):
+                return self.response_highlow()
+        elif (input_data.can_use_item and input_data.action_turn == 2):
+            if len(input_data.answer_list_oppo) <= self._danger and self._use_change():
+                new_secret, pos, highlow = self._do_change(input_data.answer_list_oppo, input_data.secret)
+                new_answer_list_oppo = input_data.answer_list_oppo
+                if highlow is not None:
+                    new_answer_list_oppo = util.add_change(input_data.answer_list_oppo, pos, highlow)
+                return self.response_change(new_secret, new_answer_list_oppo)
 
+            if len(input_data.answer_list_oppo) <= self._warning and self._use_shuffle():
+                new_secret = self._do_shuffle(input_data.secret)
+                new_answer_list_oppo = util.add_shuffle(input_data.answer_list_oppo)
+                return self.response_shuffle(new_secret, new_answer_list_oppo)
+
+        return self.response_pass()
+    

@@ -29,8 +29,8 @@ def add_change(old: list[str], pos: int, highlow: str) -> list[str]:
     oldのpos番目をhighかlowに変更して、答えの候補を返す。
     変更後の数字の組み合わせが重複禁止ルールに違反しないもののみを保持する。
     """
-    high = list(range(5, 10))
-    low = list(range(0, 5))
+    high = set(range(5, 10))
+    low = set(range(0, 5))
 
     new_answers = set()
 
@@ -38,9 +38,14 @@ def add_change(old: list[str], pos: int, highlow: str) -> list[str]:
         if not (0 <= pos < len(ans)): # pos が不正な場合はスキップ
             continue
             
-        src_digits_for_change = high if highlow == "high" else low
-
         original_digit_at_pos = ans[pos]
+        is_original_digit_high = int(original_digit_at_pos) >= 5
+
+        if is_original_digit_high != (highlow == "high"):
+            # 変更対象の数字がhighlowカテゴリと異なる場合はスキップ
+            continue
+
+        src_digits_for_change = (high if highlow == "high" else low) - set([original_digit_at_pos])
 
         for n_candidate in src_digits_for_change:
             # 変更する数字が、変更対象の位置以外の元の数字と重複しないか確認
