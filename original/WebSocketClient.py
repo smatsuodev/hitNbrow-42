@@ -16,7 +16,7 @@ from strategy import estimate
 from strategy import candidate
 from strategy import item
 
-DOMAIN = '10.18.244.193'
+DOMAIN = 'localhost'
 PORT = 8088
 NAME = 'JO'
 DENGERTHRESHOLD = 500
@@ -209,7 +209,7 @@ if __name__ == "__main__":
     parser.add_argument("--w", type=int, default=1500,help="Warning threshold")
     parser.add_argument("--n", type=str, default="noname",help="Name")
     parser.add_argument("--secret", type=str, default="hhll", help="Secret strategy")
-    parser.add_argument("--estimate", type=str, default="mutual_info", help="Estimate strategy")
+    parser.add_argument("--estimate", type=str, default="blandy", help="Estimate strategy")
     parser.add_argument("--candidate", type=str, default="pick_from_answer", help="Challenge candidate strategy")
     parser.add_argument("--item", type=str, default="default", help="Item strategy")
     args = parser.parse_args()

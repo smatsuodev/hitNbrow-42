@@ -169,19 +169,47 @@ class DefaultItemStrategy(ItemStrategy):
                 return self.response_shuffle(new_secret, new_answer_list_oppo)
 
         return self.response_pass()
+
+    def _get_change_candidates(self, answer_list_oppo: list[str], secret: str) -> str | None:
+        is_high_at_pos = {i: answer_list_oppo[0][i] >= 5 for i in range(4) }
+        for ans in answer_list_oppo:
+            for i in range(4):
+                if ans[i] >= 5 != is_high_at_pos[i]:
+                    is_high_at_pos[i] = None
+
+        index_cands = set()
+        for i in range(4):
+            if is_high_at_pos[i] is not None:
+                index_cands.add(i)
+        
+        if len(index_cands) == 0:
+            return None
+        
+        # max_
+        # for ans in answer_list_oppo:
+        #     for i in index_cands:
+
+        
     
     def _do_change(self, answer_list_oppo: list[str], secret: str) -> tuple[str, int, str | None]:
         all_digits = set(map(str, range(10)))
         secret_list = set(secret)
         unused_digits_set = all_digits - secret_list
         unused_digits = list(map(int,unused_digits_set))
+        unused_high_digits = list(filter(lambda x: x >= 5, unused_digits))
+        unused_low_digits = list(filter(lambda x: x < 5, unused_digits))
         digit_count = Counter()
         for ans in answer_list_oppo:
             for digit in ans:
                 if digit in secret:
                     digit_count[digit] += 1
         most_frequent_digit = max(digit_count, key=digit_count.get)
+        high_digit_count = {i: digit_count[i] for i in unused_high_digits}
+        low_digit_count = {i: digit_count[i] for i in unused_low_digits}
+        worst_frequent_digit_in_high = min(high_digit_count, key=high_digit_count.get)
+        worst_frequent_digit_in_low = min(low_digit_count, key=low_digit_count.get)
         is_high = int(most_frequent_digit) >= 5
+        new_num = worst_frequent_digit_in_high if is_high else worst_frequent_digit_in_low
         for i in range(len(secret)):
             if (secret[i] == most_frequent_digit):
                 new_num = random.choice(list(filter(lambda x: x >= 5 if is_high else x < 5, unused_digits)))

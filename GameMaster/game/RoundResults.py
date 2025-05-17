@@ -38,4 +38,4 @@ class RoundResults:
                   f"{p1_name} used ap:\t{result[1]}\t{p2_name} used ap:\t{result[2]}")
             if result[0] == PlayerNumber.Player1:
                 i = i + 1
-        print(i/10)
+        print(i/100)

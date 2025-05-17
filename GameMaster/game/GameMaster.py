@@ -59,6 +59,7 @@ class Master:
         else:
             for round_number in range(1, 101):
                 print(f'start round {round_number}')
+                print(f'start round {round_number}', file=sys.stderr)
                 round_winner = await self.start_game()
 
                 await self.send_round_result(round_winner)
@@ -226,6 +227,7 @@ class Master:
             await player.send_round_result(winner)
         await self.__viewer.send_round_result(winner, self.context)
         print(f"round winner player{winner.value}")
+        print(f"round winner player{winner.value}", file=sys.stderr)
 
     async def send_game_result(self, winner: PlayerNumber | None):
         for player in self.context.get_players():

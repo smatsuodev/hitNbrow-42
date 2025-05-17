@@ -4,7 +4,8 @@ import asyncio
 import websockets
 from websockets import ServerConnection
 
-DOMAIN = '0.0.0.0'
+DOMAIN = 'localhost'
+# DOMAIN = '0.0.0.0'
 PORT = 8088
 
 
