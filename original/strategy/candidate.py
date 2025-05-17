@@ -1,4 +1,15 @@
-from util.commonUtils import create_unique_list
+from util.util import create_unique_list
+
+def factory_challenge_candidate_strategy(type: str):
+    """
+    戦略のファクトリメソッド
+    """
+    if type == "brute_force":
+        return BluteForceStrategy()
+    elif type == "pick_from_answer":
+        return PickFromAnswerStrategy()
+    else:
+        raise ValueError("Unknown strategy type")
 
 
 class ChallengeCandidateInput():
