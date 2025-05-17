@@ -166,13 +166,14 @@ class WebSocketClient:
             self._answer_list = delete_bad_answer_target(result_target_number, result_target_position, self._answer_list)
         elif message_type == "requestChallengeNumber":
             input = estimate.EstimateInput(
-                answerList=self._answer_list,
-                challengeCandidates=self._challenge_candidate_strategy.candidates(
+                answer_list=self._answer_list,
+                challenge_candidates=self._challenge_candidate_strategy.candidates(
                     candidate.ChallengeCandidateInput(
                         answer_list=self._answer_list,
                         game_turn=self._game_turn
                     )
-                )
+                ),
+                answer_list_oppo=self._answer_list_oppo,
             )
             response = ChallengeNumberResponse(self._estimate_strategy.estimate(input))
             await self.send(websocket, response.as_body())
