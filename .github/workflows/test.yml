@@ -4,6 +4,9 @@ on:
     types: [ opened, synchronize ]
 jobs:
   main:
+    strategy:
+      matrix:
+        a: [1, 2, 3, 4]
     runs-on: ubuntu-latest
     permissions:
       contents: read
