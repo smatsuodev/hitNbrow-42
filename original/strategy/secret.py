@@ -16,7 +16,7 @@ def gen_random() -> str:
     """
     numbers = list(range(10))
     random.shuffle(numbers)
-    return ''.join(map(str, numbers{:4}))
+    return ''.join(map(str, numbers[:4]))
 
 def gen_h2l2_shuffle() -> str:
     low = list(range(5))
