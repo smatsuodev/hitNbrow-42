@@ -22,7 +22,7 @@ def factory_item_strategy(type: str):
 class ItemStrategyInput:
     def __init__(self, action_turn: int, can_use_item: bool, answer_list_oppo: list[str], secret: str, game_turn: int, answer_list: list[str],
                  can_oppo_use_shuffle: bool = False, can_oppo_use_target: bool = False,
-                 oppo_last_target: dict | None = None):
+                 oppo_last_target: dict | None = None, oppo_lash_challenge: dict | None = None):
         self.action_turn = action_turn
         self.can_use_item = can_use_item
         self.answer_list_oppo = answer_list_oppo
@@ -32,6 +32,7 @@ class ItemStrategyInput:
         self.can_oppo_use_shuffle = can_oppo_use_shuffle
         self.can_oppo_use_target = can_oppo_use_target
         self.oppo_last_target = oppo_last_target
+        self.oppo_lash_challenge = oppo_lash_challenge
 
 class ItemStrategyOutput:
     def __init__(self, messageType: str, action: str, number: str | None = None, new_secret: str | None = None,
@@ -149,6 +150,19 @@ class DefaultItemStrategy(ItemStrategy):
         self._warning = 1000
 
     def execute(self, input_data):
+        if (input_data.can_use_item and input_data.oppo_lash_challenge["hit"] > 0 and self._use_change()):
+            declared_number = input_data.oppo_lash_challenge["number"]
+            hit_idx = []
+            for i in range(4):
+                if declared_number[i] == input_data.secret[i]:
+                    hit_idx.append(i)
+            new_secret, pos, highlow = self._do_change(input_data.answer_list_oppo, input_data.secret, idx=hit_idx)
+            new_answer_list_oppo = input_data.answer_list_oppo
+            if highlow is not None:
+                new_answer_list_oppo = util.add_change(input_data.answer_list_oppo, pos, highlow)
+            return self.response_change(new_secret, new_answer_list_oppo)
+
+
         if (input_data.can_use_item and input_data.action_turn == 1):
             if (self._use_high_low()):
                 return self.response_highlow()
@@ -191,7 +205,7 @@ class DefaultItemStrategy(ItemStrategy):
 
         
     
-    def _do_change(self, answer_list_oppo: list[str], secret: str) -> tuple[str, int, str | None]:
+    def _do_change(self, answer_list_oppo: list[str], secret: str, idx: list[str] = [0,1,2,3]) -> tuple[str, int, str | None]:
         all_digits = set(map(str, range(10)))
         secret_list = set(secret)
         unused_digits_set = all_digits - secret_list
@@ -201,7 +215,7 @@ class DefaultItemStrategy(ItemStrategy):
         digit_count = Counter()
         for ans in answer_list_oppo:
             for digit in ans:
-                if digit in secret:
+                if digit in [secret[i] for i in idx]:
                     digit_count[digit] += 1
         most_frequent_digit = max(digit_count, key=digit_count.get)
         high_digit_count = {i: digit_count[i] for i in unused_high_digits}

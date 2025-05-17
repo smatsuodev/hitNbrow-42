@@ -44,6 +44,11 @@ class WebSocketClient:
             "number": 0,
             "position": 0
         }
+        self._oppo_last_challenge = {
+            "number": "",
+            "hit": 0,
+            "blow": 0,
+        }
         self.initForRound()
 
     def initForRound(self):
@@ -67,6 +72,11 @@ class WebSocketClient:
         self._oppo_last_target = {
                 "number": 0,
             "position": 0
+        }
+        self._oppo_last_challenge = {
+            "number": "",
+            "hit": 0,
+            "blow": 0,
         }
         print(f"round: {self._round}", file=sys.stderr)
         
@@ -130,6 +140,11 @@ class WebSocketClient:
                     result_challenge_hit = result_challenge.get("hit")
                     result_challenge_blow = result_challenge.get("blow")
                     self._answer_list_oppo = delete_bad_answer(int(result_challenge_hit), int(result_challenge_blow), result_challenge_number, self._answer_list_oppo)
+                    self._oppo_last_challenge = {
+                        "number": result_challenge_number,
+                        "hit": int(result_challenge_hit),
+                        "blow": int(result_challenge_blow)
+                    }
         elif message_type == "requestItemAction":
             if self._trun_flag == 0:
                 self._game_turn += 1
@@ -144,6 +159,7 @@ class WebSocketClient:
                 can_oppo_use_shuffle=self._oppo_shuffle,
                 can_oppo_use_target=self._oppo_target,
                 oppo_last_target=self._oppo_last_target,
+                oppo_lash_challenge=self._oppo_last_challenge,
             )
             output = self._item_strategy.execute(input)
             if output.did_use_item():
